@@ -1,23 +1,17 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "index.js",
+  "type": "module",
+  "main": "src/app.js",
   "scripts": {
-    "start": "node dist/app.js",
-    "dev": "nodemon src/app.ts",
-   "build": "tsc",
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "build": "echo 'No build step needed for JS'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.5.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -30,8 +24,6 @@
     "nodemon": "^3.1.14",
     "socket.io": "^4.8.3",
     "sqlite": "^5.1.1",
-    "sqlite3": "^6.0.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^6.0.2"
+    "sqlite3": "^6.0.1"
   }
 }
