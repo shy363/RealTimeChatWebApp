@@ -230,7 +230,7 @@ const startServer = async () => {
   try {
     await initDatabase();
     console.log(`Attempting to start server on port ${PORT}...`);
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (error) {
