@@ -128,7 +128,7 @@ const Chat = () => {
       }
     });
 
-    newSocket.on('userStoppedTyping', ({ userId: typingId }) => {
+    newSocket.on('userStopTyping', ({ userId: typingId }) => {
       if (typingId === selectedContactRef.current?.id) {
         setTypingUser(null);
       }

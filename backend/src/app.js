@@ -5,6 +5,8 @@ import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 import authRoutes from './routes/auth.js';
 import messageRoutes from './routes/messages.js';
@@ -13,6 +15,7 @@ import { verifyToken } from './utils/jwt.js';
 import pool from './utils/database.js';
 import { saveMessage } from './controllers/messageController.js';
 import { initDatabase } from './utils/database.js';
+import { serveStatic } from './utils/serveStatic.js';
 
 dotenv.config();
 
@@ -21,7 +24,7 @@ const server = createServer(app);
 
 const io = new SocketIOServer(server, {
   cors: {
-    origin: "*",
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST"]
   }
 });
@@ -48,6 +51,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/contacts', contactRoutes);
 
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(serveStatic);
+  app.get('*', (req, res) => {
+    res.sendFile(join(dirname(fileURLToPath(import.meta.url)), 'frontend/dist/index.html'));
+  });
+}
+
 // Socket.io
 const onlineUsers = new Map();
 
@@ -67,6 +78,10 @@ io.on('connection', (socket) => {
 
   onlineUsers.set(userId, socket.id);
 
+  // ✅ Join personal room for direct messaging
+  socket.join(`user_${userId}`);
+  console.log(`User ${userId} joined room user_${userId}`);
+
   socket.on('sendMessage', async (data) => {
     try {
       const { content, recipientId } = data;
@@ -78,14 +93,29 @@ io.on('connection', (socket) => {
         recipientId
       );
 
+      // ✅ Send to both sender and recipient rooms
       io.to(`user_${recipientId}`).emit('newMessage', message);
+      io.to(`user_${userId}`).emit('newMessage', message);
     } catch (err) {
+      console.error('Message send error:', err);
       socket.emit('error', 'Message failed');
     }
   });
 
+  // ✅ Typing indicators
+  socket.on('typing', (data) => {
+    const { recipientId } = data;
+    socket.to(`user_${recipientId}`).emit('userTyping', { userId });
+  });
+
+  socket.on('stopTyping', (data) => {
+    const { recipientId } = data;
+    socket.to(`user_${recipientId}`).emit('userStopTyping', { userId });
+  });
+
   socket.on('disconnect', () => {
     onlineUsers.delete(userId);
+    console.log(`User ${userId} disconnected`);
   });
 });
 
