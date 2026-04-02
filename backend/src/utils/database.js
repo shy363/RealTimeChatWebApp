@@ -1,19 +1,11 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
-import path from 'path';
 
 dotenv.config();
 
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'chatapp',
-};
-
+// ✅ Use Railway DATABASE_URL directly
 const pool = mysql.createPool({
-  ...dbConfig,
+  uri: process.env.DATABASE_URL,
   waitForConnections: true,
   connectionLimit: 150,
   queueLimit: 0,
@@ -21,29 +13,20 @@ const pool = mysql.createPool({
 
 export const initDatabase = async () => {
   try {
-    console.log(`Connecting to MySQL at ${dbConfig.host}:${dbConfig.port}...`);
-    
-    // 1. Create connection without DB first to ensure it exists
-    const connection = await mysql.createConnection({
-      host: dbConfig.host,
-      port: dbConfig.port,
-      user: dbConfig.user,
-      password: dbConfig.password,
-    });
+    console.log("Connecting to Railway MySQL...");
 
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\``);
+    // ✅ Direct connection using DATABASE_URL
+    const connection = await mysql.createConnection(process.env.DATABASE_URL);
+
+    // Test connection
+    await connection.query('SELECT 1');
     await connection.end();
 
-    // 2. Test the pool
+    // Get pool connection
     const poolConn = await pool.getConnection();
-    console.log(`Successfully connected to database "${dbConfig.database}"`);
-    
-    // 3. Stable table check (No more dropping)
-    // await poolConn.query(`SET FOREIGN_KEY_CHECKS = 0`);
-    // await poolConn.query(`DROP TABLE IF EXISTS messages`);
-    // await poolConn.query(`DROP TABLE IF EXISTS users`);
-    // await poolConn.query(`SET FOREIGN_KEY_CHECKS = 1`);
+    console.log(`Successfully connected to Railway database`);
 
+    // ✅ Create tables
     await poolConn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(36) PRIMARY KEY,
@@ -94,26 +77,23 @@ export const initDatabase = async () => {
       ) ENGINE=InnoDB
     `);
 
-    // Ensure emojiPattern exists (schema update)
+    // Schema updates
     try {
       await poolConn.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS emojiPattern VARCHAR(255)');
     } catch (e) {
-      // In case ADD COLUMN IF NOT EXISTS is not supported in this MySQL version
       try {
         await poolConn.query('ALTER TABLE users ADD COLUMN emojiPattern VARCHAR(255)');
       } catch (err) {
-        if (err.errno !== 1060) throw err; // 1060 is duplicate column
+        if (err.errno !== 1060) throw err;
       }
     }
 
-    // Ensure 'sent' status exists in ENUM
     try {
       await poolConn.query("ALTER TABLE contacts MODIFY COLUMN status ENUM('pending', 'sent', 'accepted', 'blocked') DEFAULT 'accepted'");
     } catch (err) {
       console.warn('Enum status update warn:', err.message);
     }
 
-    // Fix session token truncation issues
     try {
       await poolConn.query("ALTER TABLE user_sessions MODIFY COLUMN token TEXT NOT NULL");
     } catch (err) {
@@ -121,10 +101,9 @@ export const initDatabase = async () => {
     }
 
     poolConn.release();
-    console.log('Backend Tables verified/ready.');
+    console.log('✅ Backend Tables verified/ready.');
   } catch (error) {
-    console.log('MySQL Init Error:', error.message);
-    console.log('Ensure MySQL is running on port 3306.');
+    console.log('❌ MySQL Init Error:', error.message);
     throw error;
   }
 };
