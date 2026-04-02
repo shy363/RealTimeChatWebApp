@@ -4,7 +4,7 @@ import { generateSecurityHeaders } from '../utils/security.js';
 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_URL = isLocal
   ? 'http://localhost:5000/api'
-  : 'https://realtimechatwebapp-production.up.railway.app/api';
+  : 'https://realtimechatwebapp-production.up.railway.app';
 const api = axios.create({
   baseURL: API_URL
 });
