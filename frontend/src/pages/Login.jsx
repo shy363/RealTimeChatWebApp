@@ -132,7 +132,10 @@ const Login = () => {
     setLoading(true);
     try {
       const emojiString = pattern.join(',');
-      const response = await login(authData.username, emojiString);
+     const response = await login({
+  username: authData.username,
+  emojiPattern: pattern
+});
       
       if (response && response.user) {
         addMessage({
