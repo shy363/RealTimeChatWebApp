@@ -1,10 +1,13 @@
 import api from './api.js';
 
 export const authService = {
-  async login(credentials) {
-    const response = await api.post('/auth/login', credentials);
-    return response.data;
-  },
+  async login({ username, emojiPattern }) {
+  const response = await api.post('/auth/login', {
+    username,
+    pattern: emojiPattern.join(',')
+  });
+  return response.data;
+}
 
   async register(username, emojiPattern) {
     const response = await api.post('/auth/register', {
