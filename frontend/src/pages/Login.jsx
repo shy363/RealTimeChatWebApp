@@ -131,10 +131,9 @@ const Login = () => {
   const handleFinalAuth = async (pattern) => {
     setLoading(true);
     try {
-      const emojiString = pattern.join(',');
      const response = await login({
   username: authData.username,
-  emojiPattern: pattern
+  emojiPattern: pattern.join(',')
 });
       
       if (response && response.user) {
