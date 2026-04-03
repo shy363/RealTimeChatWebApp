@@ -15,7 +15,7 @@ In a world of data surveillance, ZenithFlow aims to be a **Digital Sanctuary**. 
 ZenithFlow is built on a robust, decoupled **Sentinel Architecture**:
 
 ### **Frontend (The User Portal)**
-*   **Core**: React 18 + TypeScript
+*   **Core**: React 19 + JavaScript (JSX)
 *   **Styling**: Custom Precision-Engineered CSS (No frameworks) for maximum performance and unique aesthetics.
 *   **State Management**: React Hooks + Context API
 *   **Real-time Layer**: Socket.io Client (Bi-directional binary streams)

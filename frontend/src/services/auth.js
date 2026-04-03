@@ -1,22 +1,24 @@
 import api from './api.js';
 
 export const authService = {
-  async login(credentials) {
-    const response = await api.post('/auth/login', credentials);
+  async login({ username, emojiPattern }) {
+    const response = await api.post('/api/auth/login', {
+      username,
+      emojiPattern   // ✅ NO join
+    });
     return response.data;
   },
 
   async register(username, emojiPattern) {
-    const response = await api.post('/auth/register', {
+    const response = await api.post('/api/auth/register', {
       username,
       emojiPattern
     });
     return response.data;
   },
 
-  async validateToken() {
-    const response = await api.get('/auth/validate');
-    return response.data;
+  getAuthToken() {
+    return localStorage.getItem('token');
   },
 
   setAuthSession(token, fingerprint) {
@@ -24,21 +26,13 @@ export const authService = {
     localStorage.setItem('fingerprint', fingerprint);
   },
 
-  getAuthToken() {
-    return localStorage.getItem('token');
-  },
-
-  getFingerprint() {
-    return localStorage.getItem('fingerprint');
-  },
-
   removeAuthSession() {
     localStorage.removeItem('token');
     localStorage.removeItem('fingerprint');
   },
 
-  async getUsers() {
-    const response = await api.get('/auth/users');
+  async validateToken() {
+    const response = await api.get('/api/auth/validate'); // ✅ FIXED
     return response.data;
   }
 };

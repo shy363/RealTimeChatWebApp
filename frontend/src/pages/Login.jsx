@@ -131,8 +131,7 @@ const Login = () => {
   const handleFinalAuth = async (pattern) => {
     setLoading(true);
     try {
-      const emojiString = pattern.join(',');
-      const response = await login(authData.username, emojiString);
+      const response = await login(authData.username, pattern.join(','));
       
       if (response && response.user) {
         addMessage({
@@ -146,18 +145,22 @@ const Login = () => {
           navigate(inviteCode ? `/invite/${inviteCode}` : '/chat');
         }, 1200);
       }
-    } catch (error) {
-      await simulateBotTyping(1000);
-      const errorMessage = error.response?.data?.message || 'Access Denied: Signature Mismatch.';
-      addMessage({ sender: 'bot', text: `⚠️ ${errorMessage}`, type: 'text' });
-      
-      setTimeout(() => {
-        setAuthData({ username: '', pattern: [] });
-        setCurrentStep('username');
-        addMessage({ sender: 'bot', text: '🔄 Restarting... Enter your Alias:', type: 'text' });
-      }, 1500);
-    } finally {
-      setLoading(false);
+   } catch (error) {
+  await simulateBotTyping(1000);
+  const errorMessage = error.response?.data?.message || 'Access Denied: Signature Mismatch.';
+  addMessage({ sender: 'bot', text: `⚠️ ${errorMessage}`, type: 'text' });
+  
+  setTimeout(() => {
+    setAuthData({ username: '', pattern: [] });
+    setCurrentStep('username');
+    setInputValue('');   // ✅ ADD THIS LINE HERE
+
+    addMessage({
+      sender: 'bot',
+      text: '🔄 Restarting... Enter your Alias:',
+      type: 'text'
+    });
+  }, 1500);
     }
   };
 
