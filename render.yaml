@@ -16,3 +16,5 @@ services:
         value: 7d
       - key: FRONTEND_URL
         sync: false
+      - key: DATABASE_URL
+        value: "sqlite:"
