@@ -54,7 +54,8 @@ app.use('/api/contacts', contactRoutes);
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
   app.use(serveStatic);
-  app.get('*', (req, res) => {
+  // Catch-all for React SPA
+  app.use((req, res) => {
     res.sendFile(join(dirname(fileURLToPath(import.meta.url)), '../../frontend/dist/index.html'));
   });
 }

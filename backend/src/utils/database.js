@@ -1,32 +1,87 @@
 import mysql from 'mysql2/promise';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+dotenv.config(); // Root .env
+dotenv.config({ path: path.join(process.cwd(), 'backend', '.env') }); // Backend .env
 
-// ✅ Use Railway DATABASE_URL directly
-const pool = mysql.createPool({
-  uri: process.env.DATABASE_URL,
-  waitForConnections: true,
-  connectionLimit: 150,
-  queueLimit: 0,
-});
+const isSqlite = !process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith('sqlite:');
+let db;
+let pool;
+
+if (isSqlite) {
+  console.log("🛠️ Using SQLite Storage for Portability...");
+} else {
+  pool = mysql.createPool({
+    uri: process.env.DATABASE_URL,
+    waitForConnections: true,
+    connectionLimit: 150,
+    queueLimit: 0,
+  });
+}
 
 export const initDatabase = async () => {
   try {
+    if (isSqlite) {
+      db = await open({
+        filename: './database.sqlite',
+        driver: sqlite3.Database
+      });
+
+      await db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          username TEXT UNIQUE NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          emojiPattern TEXT,
+          phoneNumber TEXT,
+          inviteCode TEXT UNIQUE,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS contacts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          userId TEXT NOT NULL,
+          contactId TEXT NOT NULL,
+          status TEXT CHECK(status IN ('pending', 'sent', 'accepted', 'blocked')) DEFAULT 'accepted',
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (userId, contactId),
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (contactId) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          content TEXT NOT NULL,
+          userId TEXT NOT NULL,
+          username TEXT NOT NULL,
+          recipientId TEXT,
+          createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS user_sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          userId TEXT NOT NULL,
+          fingerprint TEXT NOT NULL,
+          token TEXT NOT NULL,
+          lastSeen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+        );
+      `);
+      console.log('✅ SQLite Tables verified/ready.');
+      return;
+    }
+
     console.log("Connecting to Railway MySQL...");
-
-    // ✅ Direct connection using DATABASE_URL
     const connection = await mysql.createConnection(process.env.DATABASE_URL);
-
-    // Test connection
     await connection.query('SELECT 1');
     await connection.end();
 
-    // Get pool connection
     const poolConn = await pool.getConnection();
     console.log(`Successfully connected to Railway database`);
 
-    // ✅ Create tables
+    // Create tables (MySQL syntax)
     await poolConn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(36) PRIMARY KEY,
@@ -40,6 +95,7 @@ export const initDatabase = async () => {
       ) ENGINE=InnoDB
     `);
 
+    // ... (rest of MySQL table creation)
     await poolConn.query(`
       CREATE TABLE IF NOT EXISTS contacts (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -77,35 +133,32 @@ export const initDatabase = async () => {
       ) ENGINE=InnoDB
     `);
 
-    // Schema updates
-    try {
-      await poolConn.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS emojiPattern VARCHAR(255)');
-    } catch (e) {
-      try {
-        await poolConn.query('ALTER TABLE users ADD COLUMN emojiPattern VARCHAR(255)');
-      } catch (err) {
-        if (err.errno !== 1060) throw err;
-      }
-    }
-
-    try {
-      await poolConn.query("ALTER TABLE contacts MODIFY COLUMN status ENUM('pending', 'sent', 'accepted', 'blocked') DEFAULT 'accepted'");
-    } catch (err) {
-      console.warn('Enum status update warn:', err.message);
-    }
-
-    try {
-      await poolConn.query("ALTER TABLE user_sessions MODIFY COLUMN token TEXT NOT NULL");
-    } catch (err) {
-      console.warn('Session token update warn:', err.message);
-    }
-
     poolConn.release();
     console.log('✅ Backend Tables verified/ready.');
   } catch (error) {
-    console.log('❌ MySQL Init Error:', error.message);
+    console.log('❌ DB Init Error:', error.message);
     throw error;
   }
 };
 
-export default pool;
+// Polyfill query method for pool to support both
+const dbAdapter = {
+  query: async (sql, params) => {
+    if (isSqlite) {
+      // Convert MySQL ? to SQLite ? or named params if necessary
+      // Simple ? replacement works for both in basic queries
+      if (sql.includes('SELECT') || sql.includes('SHOW')) {
+        return [await db.all(sql, params)];
+      }
+      const result = await db.run(sql, params);
+      return [{ insertId: result.lastID, affectedRows: result.changes }];
+    }
+    return pool.query(sql, params);
+  },
+  execute: async (sql, params) => {
+    if (isSqlite) return dbAdapter.query(sql, params);
+    return pool.execute(sql, params);
+  }
+};
+
+export default dbAdapter;

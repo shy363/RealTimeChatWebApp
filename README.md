@@ -78,18 +78,22 @@ PORT=5001
 ```
 
 ### **Installation & Deployment**
-1.  **Database**: Initialize your MySQL server and run the auto-creating `initDatabase` via the backend app.
-2.  **Backend**: 
+1.  **Repository Setup**:
     ```bash
-    cd backend
-    npm install
+    npm run install:all
+    ```
+2.  **Database**: Initialize your MySQL server and set the `DATABASE_URL` in your `.env`.
+3.  **Local Execution**:
+    ```bash
     npm run dev
     ```
-3.  **Frontend**:
+4.  **Production Build & Run**:
     ```bash
-    cd frontend
-    npm install
-    npm run dev
+    npm run build
+    ```
+5.  **Start Production**:
+    ```bash
+    npm start
     ```
 
 ---
