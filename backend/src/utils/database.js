@@ -1,19 +1,18 @@
 import mysql from 'mysql2/promise';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
 import dotenv from 'dotenv';
 import path from 'path';
+import { createRequire } from 'module';
 
-dotenv.config(); // Root .env
-dotenv.config({ path: path.join(process.cwd(), 'backend', '.env') }); // Backend .env
+dotenv.config();
+dotenv.config({ path: path.join(process.cwd(), 'backend', '.env') });
+
+const require = createRequire(import.meta.url);
 
 const isSqlite = !process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith('sqlite:');
-let db;
+let sqliteDb;
 let pool;
 
-if (isSqlite) {
-  console.log("🛠️ Using SQLite Storage for Portability...");
-} else {
+if (!isSqlite) {
   pool = mysql.createPool({
     uri: process.env.DATABASE_URL,
     waitForConnections: true,
@@ -25,12 +24,14 @@ if (isSqlite) {
 export const initDatabase = async () => {
   try {
     if (isSqlite) {
-      db = await open({
-        filename: './database.sqlite',
-        driver: sqlite3.Database
-      });
+      console.log('🛠️ Using better-sqlite3 for portability...');
+      const Database = require('better-sqlite3');
+      sqliteDb = new Database('./database.sqlite');
 
-      await db.exec(`
+      // Enable WAL mode for better concurrency
+      sqliteDb.pragma('journal_mode = WAL');
+
+      sqliteDb.exec(`
         CREATE TABLE IF NOT EXISTS users (
           id TEXT PRIMARY KEY,
           username TEXT UNIQUE NOT NULL,
@@ -69,19 +70,19 @@ export const initDatabase = async () => {
           FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
         );
       `);
-      console.log('✅ SQLite Tables verified/ready.');
+
+      console.log('✅ SQLite tables verified/ready (better-sqlite3).');
       return;
     }
 
-    console.log("Connecting to Railway MySQL...");
+    console.log('Connecting to MySQL database...');
     const connection = await mysql.createConnection(process.env.DATABASE_URL);
     await connection.query('SELECT 1');
     await connection.end();
 
     const poolConn = await pool.getConnection();
-    console.log(`Successfully connected to Railway database`);
+    console.log('Successfully connected to MySQL database');
 
-    // Create tables (MySQL syntax)
     await poolConn.query(`
       CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(36) PRIMARY KEY,
@@ -95,7 +96,6 @@ export const initDatabase = async () => {
       ) ENGINE=InnoDB
     `);
 
-    // ... (rest of MySQL table creation)
     await poolConn.query(`
       CREATE TABLE IF NOT EXISTS contacts (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -134,31 +134,32 @@ export const initDatabase = async () => {
     `);
 
     poolConn.release();
-    console.log('✅ Backend Tables verified/ready.');
+    console.log('✅ MySQL tables verified/ready.');
   } catch (error) {
-    console.log('❌ DB Init Error:', error.message);
+    console.error('❌ DB Init Error:', error.message);
     throw error;
   }
 };
 
-// Polyfill query method for pool to support both
+// Async-compatible adapter — keeps all controllers unchanged
 const dbAdapter = {
-  query: async (sql, params) => {
+  query: async (sql, params = []) => {
     if (isSqlite) {
-      // Convert MySQL ? to SQLite ? or named params if necessary
-      // Simple ? replacement works for both in basic queries
-      if (sql.includes('SELECT') || sql.includes('SHOW')) {
-        return [await db.all(sql, params)];
+      const stmt = sqliteDb.prepare(sql);
+      const upper = sql.trim().toUpperCase();
+      if (upper.startsWith('SELECT') || upper.startsWith('PRAGMA')) {
+        const rows = stmt.all(...(Array.isArray(params) ? params : [params]));
+        return [rows];
       }
-      const result = await db.run(sql, params);
-      return [{ insertId: result.lastID, affectedRows: result.changes }];
+      const result = stmt.run(...(Array.isArray(params) ? params : [params]));
+      return [{ insertId: result.lastInsertRowid, affectedRows: result.changes }];
     }
     return pool.query(sql, params);
   },
-  execute: async (sql, params) => {
+  execute: async (sql, params = []) => {
     if (isSqlite) return dbAdapter.query(sql, params);
     return pool.execute(sql, params);
-  }
+  },
 };
 
-export default dbAdapter;
+export default dbAdapter;
