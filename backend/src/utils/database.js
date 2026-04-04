@@ -8,7 +8,16 @@ dotenv.config({ path: path.join(process.cwd(), 'backend', '.env') });
 
 const require = createRequire(import.meta.url);
 
-const isSqlite = !process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith('sqlite:');
+let isSqlite = !process.env.DATABASE_URL || process.env.DATABASE_URL.startsWith('sqlite:');
+
+// CRITICAL FIX FOR RENDER: If we're on render, but dotenv injected the local
+// mysql://root@localhost URL, force fallback to SQLite.
+if (process.env.RENDER === 'true' || process.env.NODE_ENV === 'production') {
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost')) {
+    isSqlite = true;
+  }
+}
+
 let sqliteDb;
 let pool;
 
