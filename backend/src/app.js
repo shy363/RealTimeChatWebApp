@@ -24,7 +24,7 @@ const server = createServer(app);
 
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: "*", // allow Firebase, local, Vercel, anywhere
     methods: ["GET", "POST"]
   }
 });
